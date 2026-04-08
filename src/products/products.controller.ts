@@ -1,22 +1,38 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query } from '@nestjs/common';
+import { PRODUCT_SERVICE } from 'src/config';
+import { ClientProxy } from '@nestjs/microservices';
+import { PaginationDto } from 'src/common';
+import { firstValueFrom } from 'rxjs';
 
 @Controller('products')
 export class ProductsController {
-  constructor() {}
+  constructor(
+    @Inject(PRODUCT_SERVICE) private readonly productsClient: ClientProxy
+  ) {}
 
   @Post()
   createProduct(@Body() body:any){
-    return 'Crea un prod'
+    return this.productsClient.send({ cmd: 'create_product' }, body)
   }
 
   @Get()
-  findAllProducts(){
-    return 'Encuentra todos los productos'
+  findAllProducts(
+    @Query() paginationDto: PaginationDto
+  ){
+    return this.productsClient.send({ cmd: 'find_all_products' }, paginationDto)
   }
 
   @Get(':id')
-  findOneProduct(@Param('id') id: string){
-    return `Encuentra un producto ${id}`
+  async findOneProduct(@Param('id') id: string){
+    try {
+      const product = await  firstValueFrom(this.productsClient.send(
+        { cmd: 'find_one_product' }, {id}
+      ))
+      return product;
+      
+    } catch (error) {
+      throw new BadRequestException(error.message)
+    }
   }
 
   @Patch(':id')
@@ -24,11 +40,11 @@ export class ProductsController {
     @Param('id') id: string,
     @Body() body:any,
   ){
-    return `Actualiza un producto ${id}`
+    return this.productsClient.send({ cmd: 'update_product' }, {id, ...body})
   }
 
   @Delete(':id')
   deleteProduct(@Param('id') id: string){
-    return `Elimina un producto ${id}`
+    return this.productsClient.send({ cmd: 'delete_product' }, {id})
   }
 }
